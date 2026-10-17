@@ -133,25 +133,26 @@ renderer.setAnimationLoop(()=>{
  if(climb){tmp.set(0,0,0);gr.forEach(h=>tmp.add(hv.subVectors(h.anc,h.wp)));tmp.divideScalar(gr.length);D.position.add(tmp);lastMove.lerp(tmp.divideScalar(dt),.3);vel.set(0,0,0);supported=true;refresh()}
  else{
   if(prevClimb)vel.copy(lastMove).clampLength(0,14);
-  const sp=vel.length();vel.y-=(inWater?G*.15:G)*dt;
-  if(inWater){vel.multiplyScalar(Math.max(0,1-4*dt));vel.y+=(.25-headP.y)*5*dt;hands.forEach(h=>{if(h.wp.y<0)vel.addScaledVector(h.rv,-.08*dt*72)});vel.clampLength(0,8)}
+  const sp=vel.length();vel.y-=(inWater?G*.1:G)*dt;
+  if(inWater){vel.multiplyScalar(Math.max(0,1-3*dt));vel.y+=Math.max(0,Math.min(3,(.55-headP.y)*3))*dt;camera.getWorldDirection(sd);
+   hands.forEach(h=>{if(h.wp.y<0){const f=-h.rv.dot(sd);if(f>.3)vel.addScaledVector(sd,f*6*dt);if(h.rv.y<-.3)vel.y-=h.rv.y*5*dt}});vel.clampLength(0,7)}
   else vel.multiplyScalar(Math.max(0,1-.003*sp*dt));
   D.position.addScaledVector(vel,dt);refresh();
   // HANDS push the tiny body off any surface (Gorilla Tag style)
-  hands.forEach(h=>{h.pd.set(0,0,0);for(const bx of boxes){const p=push(h.wp,.1,bx);if(p){h.pd.add(p);h.wp.add(p);D.position.add(p)}}if(h.pd.lengthSq()>0)pushed=true});
+  hands.forEach(h=>{h.pd.set(0,0,0);for(const bx of boxes){const p=push(h.wp,.1,bx);if(p){tmp.copy(p).normalize();hv.copy(h.rv).multiplyScalar(dt);hv.addScaledVector(tmp,-hv.dot(tmp));p.addScaledVector(hv,-.95);h.pd.add(p);D.position.add(p);refresh()}}if(h.pd.lengthSq()>0)pushed=true});
   if(pushed){tot.set(0,0,0);hands.forEach(h=>tot.add(h.pd));hv.copy(tot).divideScalar(dt).multiplyScalar(1.2).clampLength(0,14);if(hv.length()<.5)hv.set(0,0,0);vel.copy(hv);
    hands.forEach(h=>{const s=h.pd.length()/dt;if(s>1.5){buzz(h,s/9,35);if(T-lastSlap>.12){lastSlap=T;burst(600,150,Math.min(.5,s/18),.1)}}})}
   refresh();
   // tiny head-sized body: the only other collider
   bodyP.copy(headP);bodyP.y-=.05;
-  for(const bx of boxes){const p=push(bodyP,.2,bx);if(p){D.position.add(p);bodyP.add(p);tmp.copy(p).normalize();const vn=vel.dot(tmp);if(vn<0)vel.addScaledVector(tmp,-vn);if(tmp.y>.5){contact=true;vel.x*=Math.max(0,1-3*dt);vel.z*=Math.max(0,1-3*dt)}}}
+  for(const bx of boxes){const p=push(bodyP,.2,bx);if(p){D.position.add(p);bodyP.add(p);tmp.copy(p).normalize();const vn=vel.dot(tmp);if(vn<0)vel.addScaledVector(tmp,-vn);if(tmp.y>.5){contact=true;vel.x*=Math.max(0,1-8*dt);vel.z*=Math.max(0,1-8*dt)}}}
   supported=pushed||contact;refresh();
  }
  prevClimb=climb;
  // hands splashing into the water surface
  hands.forEach(h=>{if(h.py>.05&&h.wp.y<=.05){const s=h.rv.length();if(s>1.5){tmp.set(h.wp.x,0,h.wp.z);splash(tmp,Math.min(s,6));burst(1500,300,Math.min(.3,s/15),.15);buzz(h,s/8,40)}}h.py=h.wp.y});
  // water entry + dive rating
- const wasW=inWater;inWater=headP.y<.12;
+ const wasW=inWater;inWater=wasW?headP.y<.45:headP.y<.05;
  if(inWater&&!wasW){const s=Math.max(-vel.y,.5*Math.hypot(vel.x,vel.z));
   if(s>2){const ang=Math.abs(vel.y)/Math.max(.1,vel.length()),big=airTop>3&&s>9;let rate='',mul=1;
    if(big){rate=ang>.93?'PERFECT!':ang>.7?'Good dive':'BELLY FLOP!';mul=ang>.93?.75:ang>.7?1:1.7}

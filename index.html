@@ -1,29 +1,42 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cliff Dive VR</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>html,body{margin:0;height:100%;overflow:hidden;background:#bfe6ff;font-family:system-ui,sans-serif}
-#info{position:fixed;top:12px;left:12px;color:#fff;background:#0008;padding:10px 14px;border-radius:10px;max-width:380px;font-size:13px;line-height:1.5}</style></head><body>
-<div id="info"><b>Cliff Dive VR</b><br>Gorilla Tag movement: swing your arms and push off ground, rocks and walls with your hands. Slam down to jump. Grip on a rock = grab &amp; throw, grip on wall/ledge = climb. A set checkpoint, B respawn, X/Y higher/lower platform.</div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cliff Dive</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#bfe6ff;font-family:system-ui,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+#info{position:fixed;top:12px;left:12px;color:#fff;background:#0008;padding:10px 14px;border-radius:10px;max-width:360px;font-size:13px;line-height:1.5}
+#hud{position:fixed;top:12px;right:12px;color:#fff;background:#0008;padding:8px 12px;border-radius:10px;font-size:14px;white-space:pre;line-height:1.4}
+#ui{position:fixed;inset:0;pointer-events:none;display:none}
+#joy{position:absolute;left:24px;bottom:24px;width:130px;height:130px;border-radius:50%;background:#fff3;border:2px solid #fff6;pointer-events:auto}
+#knob{position:absolute;left:45px;top:45px;width:40px;height:40px;border-radius:50%;background:#fffa}
+.b{position:absolute;pointer-events:auto;width:62px;height:62px;border-radius:50%;background:#0006;color:#fff;border:2px solid #fff8;font:600 13px system-ui;display:flex;align-items:center;justify-content:center}</style></head><body>
+<div id="info"></div><div id="hud"></div>
+<div id="ui"><div id="joy"><div id="knob"></div></div>
+<div class="b" id="bJ" style="right:28px;bottom:28px">Jump</div><div class="b" id="bG" style="right:104px;bottom:28px">Grab</div>
+<div class="b" id="bC" style="right:28px;bottom:104px">Flag</div><div class="b" id="bR" style="right:104px;bottom:104px">Back</div>
+<div class="b" id="bU" style="right:28px;bottom:180px">&#9650;</div><div class="b" id="bD" style="right:104px;bottom:180px">&#9660;</div></div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three';
 import {VRButton} from 'three/addons/webxr/VRButton.js';
-const G=9.8,V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z),rnd=Math.random;
-const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(1);renderer.setSize(innerWidth,innerHeight);renderer.xr.enabled=true;
-document.body.appendChild(renderer.domElement);document.body.appendChild(VRButton.createButton(renderer));
+const G=9.8,V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z),rnd=Math.random,$=id=>document.getElementById(id);
+const mobile=matchMedia('(pointer:coarse)').matches||/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.xr.enabled=true;
+document.body.appendChild(renderer.domElement);
+if(navigator.xr)navigator.xr.isSessionSupported('immersive-vr').then(ok=>{if(ok)document.body.appendChild(VRButton.createButton(renderer))}).catch(()=>{});
+$('info').innerHTML=mobile?'<b>Cliff Dive</b><br>Left stick: move/swim. Drag the right side: look. Jump (hold against a wall to climb, swim up), Grab/throw rocks, Flag = checkpoint, Back = respawn, &#9650;&#9660; = platforms.':'<b>Cliff Dive</b><br>Click to play. WASD move, Shift sprint, Space jump (hold against a wall to climb), mouse look, click/F grab &amp; throw rocks, C checkpoint, R respawn, Q/E platforms. In water: swim where you look, Space up, Shift down. VR headset: press Enter VR (Gorilla Tag style arms).';
+if(mobile){$('ui').style.display='block'}
 const scene=new THREE.Scene(),SKY=new THREE.Color(0xbfe6ff),DEEP=new THREE.Color(0x0b5d7a);
 scene.background=SKY.clone();scene.fog=new THREE.FogExp2(0xbfe6ff,.0022);
-const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,2500);camera.position.set(0,1.6,0);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,2500);camera.position.set(0,1.7,0);
 const D=new THREE.Group();D.add(camera);scene.add(D);
 scene.add(new THREE.HemisphereLight(0xffffff,0x446655,1.1));
 const sun=new THREE.DirectionalLight(0xfff2d0,1.6);sun.position.set(60,120,-40);scene.add(sun);
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
 
-// ---------- sky, sun, clouds, gulls ----------
-let skyMesh;{const g=new THREE.SphereGeometry(1500,24,16),c=[],t=new THREE.Color(0x2f7fd8),b=new THREE.Color(0xbfe6ff),p=g.attributes.position;
- for(let i=0;i<p.count;i++){const k=Math.max(0,Math.min(1,p.getY(i)/1500)),col=b.clone().lerp(t,Math.pow(k,.6));c.push(col.r,col.g,col.b)}
- g.setAttribute('color',new THREE.Float32BufferAttribute(c,3));skyMesh=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,fog:false,depthWrite:false}));skyMesh.renderOrder=-2;scene.add(skyMesh)}
-{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),gr=g.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'#fff');gr.addColorStop(.12,'#fff6c8');gr.addColorStop(.3,'rgba(255,230,150,.35)');gr.addColorStop(1,'rgba(255,230,150,0)');g.fillStyle=gr;g.fillRect(0,0,128,128);
- const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),fog:false,depthWrite:false,transparent:true}));s.position.copy(sun.position).normalize().multiplyScalar(1300);s.scale.set(500,500,1);s.renderOrder=-1;scene.add(s)}
+// ---------- sky shader, clouds, gulls ----------
+const SUN=sun.position.clone().normalize();
+const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(1500,32,16),new THREE.ShaderMaterial({uniforms:{uSun:{value:SUN}},side:THREE.BackSide,depthWrite:false,fog:false,
+ vertexShader:'varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+ fragmentShader:'uniform vec3 uSun;varying vec3 vD;void main(){vec3 d=normalize(vD);float h=max(d.y,0.);vec3 c=mix(vec3(.75,.9,1.),vec3(.12,.42,.85),pow(h,.55));float s=max(dot(d,normalize(uSun)),0.);c+=vec3(1.,.85,.5)*(pow(s,700.)*3.+pow(s,10.)*.22);gl_FragColor=vec4(c,1.);}'}));
+skyMesh.renderOrder=-2;scene.add(skyMesh);
 const clouds=[...Array(16)].map(()=>{const g=new THREE.Group(),m=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x666666,flatShading:true});
  for(let i=0;i<5;i++){const s=new THREE.Mesh(new THREE.IcosahedronGeometry(10+rnd()*12,1),m);s.position.set((rnd()-.5)*40,(rnd()-.5)*5,(rnd()-.5)*18);s.scale.y=.5;g.add(s)}
  g.position.set((rnd()-.5)*1400,90+rnd()*330,(rnd()-.5)*1400);scene.add(g);return g});
@@ -31,38 +44,80 @@ const gulls=[...Array(7)].map(()=>{const g=new THREE.Group(),m=new THREE.MeshBas
  w1=new THREE.Mesh(new THREE.PlaneGeometry(1.1,.35).rotateX(-Math.PI/2).translate(.55,0,0),m),w2=new THREE.Mesh(new THREE.PlaneGeometry(1.1,.35).rotateX(-Math.PI/2).translate(-.55,0,0),m);
  g.add(w1,w2);g.userData={w1,w2,r:20+rnd()*30,a:rnd()*6.28,y:12+rnd()*90,s:.12+rnd()*.1,ph:rnd()*6};scene.add(g);return g});
 
-// ---------- world ----------
+// ---------- world (rock shader: noise grain, wet darkening below the waterline) ----------
+function rockMat(col){const m=new THREE.MeshLambertMaterial({color:col});
+ m.onBeforeCompile=s=>{s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWp;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWp=(modelMatrix*vec4(transformed,1.)).xyz;');
+  s.fragmentShader=s.fragmentShader.replace('#include <common>',`#include <common>
+varying vec3 vWp;
+float h3(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}
+float n3(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}`)
+  .replace('#include <color_fragment>','#include <color_fragment>\nfloat nn=n3(vWp*.6)*.5+n3(vWp*2.3)*.3+n3(vWp*7.)*.2;diffuseColor.rgb*=(.6+.7*nn)*mix(vec3(.45,.62,.75),vec3(1.),smoothstep(-1.5,1.2,vWp.y));')};return m}
 const boxes=[];
-function addBox(x,y,z,w,h,d,col){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:col}));m.position.set(x,y,z);scene.add(m);boxes.push(new THREE.Box3(V(x-w/2,y-h/2,z-d/2),V(x+w/2,y+h/2,z+d/2)))}
+function addBox(x,y,z,w,h,d,col){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),rockMat(col));m.position.set(x,y,z);scene.add(m);boxes.push(new THREE.Box3(V(x-w/2,y-h/2,z-d/2),V(x+w/2,y+h/2,z+d/2)))}
 function sign(t,x,y,z){const c=document.createElement('canvas');c.width=256;c.height=128;const g=c.getContext('2d');g.fillStyle='#0009';g.fillRect(0,0,256,128);g.fillStyle='#fff';g.font='bold 72px sans-serif';g.textAlign='center';g.fillText(t,128,92);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(5,2.5,1);s.position.set(x,y,z);scene.add(s)}
 addBox(0,-45,0,1200,30,1200,0xd9c58f);          // seabed (top y=-30)
-addBox(0,120,60,160,300,20,0x7a6a5c);           // cliff wall (z 50..70)
+addBox(0,120,60,160,300,20,0x8a7a6c);           // cliff wall (z 50..70)
 addBox(0,-1,43,26,2.8,14,0xe8d29b);             // beach (top y=.4)
-addBox(-30,2.5,10,6,15,6,0x6f6458);addBox(25,0,0,5,10,5,0x6f6458); // sea stacks (10 m, 5 m)
-for(let y=-20;y<270;y+=22){const m=new THREE.Mesh(new THREE.BoxGeometry(160,5+rnd()*4,.3),new THREE.MeshLambertMaterial({color:0x5c4e43}));m.position.set(0,y,49.8);scene.add(m)} // rock strata
-const H=[3,8,15,25,40,60,90,130,180,250],plat=[{p:V(0,1.1,44)}];
-H.forEach((h,i)=>{const x=(i%2?-1:1)*(16+Math.floor(i/2)*8);addBox(x,h-.5,45,6,1,10,0xc9b27c);plat.push({p:V(x,h+.7,46)});sign(h+' m',x,h+2.8,41)});
-const wg=new THREE.PlaneGeometry(1200,1200,60,60);wg.rotateX(-Math.PI/2);
-const water=new THREE.Mesh(wg,new THREE.MeshPhongMaterial({color:0x1fa6c9,transparent:true,opacity:.82,flatShading:true,shininess:90}));scene.add(water);
-const wpos=wg.attributes.position;
-function waves(t){for(let i=0;i<wpos.count;i++){const x=wpos.getX(i),z=wpos.getZ(i);wpos.setY(i,Math.sin(x*.07+t)*.12+Math.sin(z*.09+t*1.3)*.1)}wpos.needsUpdate=true;wg.computeVertexNormals()}
+addBox(-30,2.5,10,6,15,6,0x7f7468);addBox(25,0,0,5,10,5,0x7f7468); // sea stacks (10 m, 5 m)
+addBox(-25,-8,22,34,4,26,0xd9c8a0);addBox(26,-9,16,30,4,24,0xd9c8a0); // reef shelves (tops -6, -7)
+for(let y=-20;y<270;y+=22){const m=new THREE.Mesh(new THREE.BoxGeometry(160,5+rnd()*4,.3),rockMat(0x6c5e53));m.position.set(0,y,49.8);scene.add(m)}
+const H=[3,8,15,25,40,60,90,130,180,250],plats=[{p:V(0,1.1,44)}];
+H.forEach((h,i)=>{const x=(i%2?-1:1)*(16+Math.floor(i/2)*8);addBox(x,h-.5,45,6,1,10,0xd9c28c);plats.push({p:V(x,h+.7,46)});sign(h+' m',x,h+2.8,41)});
 const flag=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.6,6).translate(0,.8,0),new THREE.MeshBasicMaterial({color:0xffe14d}));scene.add(flag);
 function gy(p){let y=-30;for(const b of boxes)if(p.x>=b.min.x&&p.x<=b.max.x&&p.z>=b.min.z&&p.z<=b.max.z&&b.max.y<=p.y+.3&&b.max.y>y)y=b.max.y;return y}
+
+// ---------- water shader: swells, sparkle, fresnel sky reflection, foam, ripples ----------
+const waveH=(x,z,t)=>.18*Math.sin(x*.11+t*1.1)+.14*Math.sin(z*.13+t*1.4)+.08*Math.sin((x+z)*.2+t*1.9)+.05*Math.sin((x-z)*.33+t*2.3);
+const NR=8,rip=[...Array(NR)].map(()=>new THREE.Vector4(0,0,-100,0));let ripI=0,T=0;
+const addRipple=(x,z,a)=>rip[ripI++%NR].set(x,z,T,a);
+const WU={uT:{value:0},uR:{value:rip},uSun:{value:SUN},uFog:{value:new THREE.Color(0xbfe6ff)},uFogD:{value:.0022}};
+const WH='float wH(vec2 p,float t){return .18*sin(p.x*.11+t*1.1)+.14*sin(p.y*.13+t*1.4)+.08*sin((p.x+p.y)*.2+t*1.9)+.05*sin((p.x-p.y)*.33+t*2.3);}';
+const wg=new THREE.PlaneGeometry(1200,1200,200,200);wg.rotateX(-Math.PI/2);
+scene.add(new THREE.Mesh(wg,new THREE.ShaderMaterial({uniforms:WU,transparent:true,side:THREE.DoubleSide,depthWrite:false,
+ vertexShader:'uniform float uT;varying vec3 vW;varying float vH;'+WH+'void main(){vec3 p=position;float h=wH(p.xz,uT);p.y=h;vH=h;vW=(modelMatrix*vec4(p,1.)).xyz;gl_Position=projectionMatrix*viewMatrix*vec4(vW,1.);}',
+ fragmentShader:`uniform float uT;uniform vec4 uR[8];uniform vec3 uSun;uniform vec3 uFog;uniform float uFogD;varying vec3 vW;varying float vH;
+void main(){vec2 p=vW.xz;float t=uT;
+ vec2 g=vec2(cos(p.x*.9+t*1.3)*.045+cos((p.x+p.y)*1.7-t*1.9)*.03,cos(p.y*1.1+t*1.1)*.045+cos((p.x-p.y)*2.1+t*1.5)*.03);
+ g+=vec2(cos(p.x*.23+t*.8),cos(p.y*.27+t*.9))*.05;
+ float foam=smoothstep(.3,.5,vH)*.6;
+ for(int i=0;i<8;i++){vec4 r=uR[i];float age=t-r.z;if(r.w>0.&&age>0.&&age<8.){vec2 d=p-r.xy;float dist=length(d)+.001;float w=dist-age*3.2;float env=exp(-w*w*.9)*exp(-age*.55)*r.w;g+=d/dist*cos(w*5.)*env*.9;foam+=env*smoothstep(-.2,.6,sin(w*5.))*.5;}}
+ vec3 n=normalize(vec3(-g.x,1.,-g.y));vec3 V=normalize(cameraPosition-vW);
+ float fr=pow(1.-max(dot(n,V),0.),4.);
+ vec3 col=mix(vec3(.02,.22,.4),vec3(.1,.65,.75),clamp(.45+vH*1.6,0.,1.));
+ vec3 R=reflect(-V,n);vec3 sk=mix(vec3(.75,.9,1.),vec3(.12,.42,.85),pow(max(R.y,0.),.55));
+ col=mix(col,sk,clamp(fr*.9+.08,0.,1.));
+ col+=vec3(1.,.9,.7)*pow(max(dot(R,normalize(uSun)),0.),220.)*1.6;
+ col=mix(col,vec3(1.),clamp(foam,0.,1.)*.85);
+ float a=mix(.82,.97,fr);
+ if(cameraPosition.y<vW.y){col=vec3(.04,.36,.5);a=.55;}
+ float dd=length(cameraPosition-vW);col=mix(col,uFog,1.-exp(-uFogD*uFogD*dd*dd));
+ gl_FragColor=vec4(col,a);}`})));
+
+// ---------- reef: corals + fish ----------
+const shelves=[{x0:-41,x1:-9,z0:10,z1:34,y:-6},{x0:12,x1:40,z0:5,z1:27,y:-7}],pal=[0xff6f91,0xff9a3c,0xb86bff,0xffd23f,0x2ec4b6,0xff4d6d];
+[new THREE.ConeGeometry(.22,1.1,5).translate(0,.55,0),new THREE.IcosahedronGeometry(.45,0).translate(0,.3,0).scale(1,.7,1),new THREE.CylinderGeometry(.08,.12,1,5).translate(0,.5,0)].forEach(g=>{
+ const im=new THREE.InstancedMesh(g,new THREE.MeshLambertMaterial({color:0xffffff}),90),o=new THREE.Object3D();
+ for(let i=0;i<90;i++){const s=shelves[i%2];o.position.set(s.x0+rnd()*(s.x1-s.x0),s.y,s.z0+rnd()*(s.z1-s.z0));o.rotation.set((rnd()-.5)*.3,rnd()*6,(rnd()-.5)*.3);o.scale.setScalar(.6+rnd()*1.6);o.updateMatrix();im.setMatrixAt(i,o.matrix);im.setColorAt(i,new THREE.Color(pal[(rnd()*pal.length)|0]))}
+ scene.add(im)});
+const NF=36,fm=new THREE.MeshLambertMaterial({color:0xffffff}),fb=new THREE.InstancedMesh(new THREE.ConeGeometry(.09,.4,6).rotateZ(-Math.PI/2),fm,NF),ft=new THREE.InstancedMesh(new THREE.ConeGeometry(.1,.14,3).rotateZ(Math.PI/2),fm,NF);
+fb.frustumCulled=ft.frustumCulled=false;scene.add(fb,ft);
+const schools=[{c:V(-25,-4,22),r:12,s:.25,a:0,y:-4,col:0xff8c1a,t:V()},{c:V(26,-5,16),r:11,s:.2,a:2,y:-5,col:0x2e86ff,t:V()},{c:V(0,-3,20),r:16,s:.18,a:4,y:-3,col:0xffd23f,t:V()}];
+const fish=[...Array(NF)].map((_,i)=>{const s=schools[i%3],f={sch:i%3,p:V(s.c.x+(rnd()-.5)*10,s.y,s.c.z+(rnd()-.5)*10),v:V(1,0,0),off:V((rnd()-.5)*5,(rnd()-.5)*2,(rnd()-.5)*5),ph:rnd()*6};const c=new THREE.Color(s.col).offsetHSL((rnd()-.5)*.05,0,(rnd()-.5)*.1);fb.setColorAt(i,c);ft.setColorAt(i,c);return f});
+const fo=new THREE.Object3D(),ftO=new THREE.Object3D();
 
 // ---------- rocks ----------
 const rocks=[];
 function addRock(x,y,z){const r=.1+rnd()*.06,m=new THREE.Mesh(new THREE.IcosahedronGeometry(r,0),new THREE.MeshLambertMaterial({color:0x888078}));scene.add(m);rocks.push({m,r,p:V(x,y,z),v:V(),home:V(x,y,z),held:null})}
 for(let i=0;i<8;i++)addRock(-8+i*2.3,.6,40+rnd()*4);
-plat.slice(1,7).forEach(q=>{addRock(q.p.x-1,q.p.y-.4,q.p.z);addRock(q.p.x+1,q.p.y-.4,q.p.z)});
+plats.slice(1,7).forEach(q=>{addRock(q.p.x-1,q.p.y-.4,q.p.z);addRock(q.p.x+1,q.p.y-.4,q.p.z)});
 
-// ---------- fx: splash, rings, bubbles, speed lines, vignette, popup ----------
+// ---------- fx ----------
 const N=400,pp=new Float32Array(N*3).fill(-999),pv=new Float32Array(N*3),pl=new Float32Array(N);let pidx=0;
 const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
 const pts=new THREE.Points(pg,new THREE.PointsMaterial({color:0xffffff,size:.16,transparent:true,opacity:.85,depthWrite:false}));pts.frustumCulled=false;scene.add(pts);
-const rings=[...Array(6)].map(()=>{const m=new THREE.Mesh(new THREE.RingGeometry(.5,.65,28).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,side:2,depthWrite:false}));m.visible=false;scene.add(m);return{m,l:0,s:1,k:1}});let ridx=0;
 function splash(p,s){const n=Math.min(N,8+(s*3|0));for(let k=0;k<n;k++){const i=pidx++%N,a=rnd()*6.28,r=rnd()*(.3+s*.03),u=1+rnd()*(2+s*.35);
  pp.set([p.x+Math.cos(a)*r*.3,.05,p.z+Math.sin(a)*r*.3],i*3);pv.set([Math.cos(a)*r*2,u,Math.sin(a)*r*2],i*3);pl[i]=1.2}
- const q=rings[ridx++%6];q.m.position.set(p.x,.06,p.z);q.l=1;q.s=1;q.k=.5+s*.12;q.m.visible=true}
+ addRipple(p.x,p.z,Math.min(1.3,.35+s*.04))}
 const NB=150,bp=new Float32Array(NB*3).fill(-999),bl=new Float32Array(NB);let bi=0;
 const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.BufferAttribute(bp,3));
 const bpts=new THREE.Points(bg,new THREE.PointsMaterial({color:0xcff6ff,size:.07,transparent:true,opacity:.8,depthWrite:false}));bpts.frustumCulled=false;scene.add(bpts);
@@ -84,11 +139,11 @@ function initAudio(){if(ac){ac.resume();return}ac=new(window.AudioContext||windo
 function burst(f0,f1,vol,dur){if(!ac)return;const s=ac.createBufferSource();s.buffer=nb;const fl=ac.createBiquadFilter();fl.type='lowpass';const t=ac.currentTime;fl.frequency.setValueAtTime(f0,t);fl.frequency.exponentialRampToValueAtTime(f1,t+dur);
  const g=ac.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);s.connect(fl);fl.connect(g);g.connect(ac.destination);s.start(t,rnd(),dur+.05)}
 function tone(f0,f1,vol,dur){if(!ac)return;const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+dur+.05)}
-addEventListener('click',initAudio);
+['pointerdown','keydown','click'].forEach(e=>addEventListener(e,initAudio));
 
-// ---------- controllers ----------
+// ---------- VR controllers ----------
 const hands=[0,1].map(i=>{const c=renderer.xr.getController(i);D.add(c);c.add(new THREE.Mesh(new THREE.SphereGeometry(.07,14,10),new THREE.MeshLambertMaterial({color:i?0xff7a59:0x59a8ff})));
- const h={c,gp:null,side:'',last:V(),rv:V(),sv:V(),wp:V(),anc:V(),pd:V(),py:1,ax:[0,0,0,0],grip:false,grab:false,held:null};
+ const h={c,gp:null,side:'',last:V(),rv:V(),sv:V(),wp:V(),anc:V(),pd:V(),py:1,grip:false,grab:false,held:null};
  c.addEventListener('connected',e=>{h.gp=e.data.gamepad;h.side=e.data.handedness;if(h.side==='left')c.add(hud)});c.addEventListener('disconnected',()=>{h.gp=null});return h});
 function buzz(h,v,ms){try{const g=h.gp;if(!g)return;const a=g.hapticActuators&&g.hapticActuators[0];v=Math.min(1,v);if(a&&a.pulse)a.pulse(v,ms);else if(g.vibrationActuator)g.vibrationActuator.playEffect('dual-rumble',{duration:ms,strongMagnitude:v,weakMagnitude:v})}catch(e){}}
 const buzzAll=(v,ms)=>hands.forEach(h=>buzz(h,v,ms));
@@ -104,91 +159,143 @@ function push(p,r,b){_c.set(cl(p.x,b.min.x,b.max.x),cl(p.y,b.min.y,b.max.y),cl(p
  const e=[p.x-b.min.x,b.max.x-p.x,p.y-b.min.y,b.max.y-p.y,p.z-b.min.z,b.max.z-p.z];let k=0;for(let i=1;i<6;i++)if(e[i]<e[k])k=i;
  const s=k%2?1:-1;_o.set(0,0,0);if(k<2)_o.x=s*(e[k]+r);else if(k<4)_o.y=s*(e[k]+r);else _o.z=s*(e[k]+r);return _o}
 
-// ---------- state ----------
-const vel=V(),lastMove=V(),headP=V(),bodyP=V(),tmp=V(),tot=V(),hv=V(),cp=V(0,1.1,44);
-let supported=false,inWater=false,climb=false,prevClimb=false,airTop=0,T=0,frame=0,lastSlap=0,cur=0,nextGull=5;
-D.position.set(0,cp.y-1.6,44);flag.position.set(0,.4,44);
+// ---------- state & shared actions ----------
+const vel=V(),lastMove=V(),headP=V(),bodyP=V(),headC=V(),tmp=V(),tot=V(),hv=V(),cp=V(0,1.1,44),flatHand={wp:V(),sv:V(),held:null};
+let supported=false,wallT=false,inWater=false,climb=false,prevClimb=false,airTop=0,frame=0,lastSlap=0,lastJ=0,cur=0,nextGull=5,wl=0,yaw=0,pitch=0;
+D.position.set(0,cp.y-1.7,44);flag.position.set(0,.4,44);camera.rotation.order='YXZ';
 const refresh=()=>{D.updateMatrixWorld(true);hands.forEach(h=>h.c.getWorldPosition(h.wp));camera.getWorldPosition(headP)};
-// place the HEAD at p (the rig is offset by the real head position)
 const teleport=p=>{D.position.set(p.x-(headP.x-D.position.x),p.y-(headP.y-D.position.y),p.z-(headP.z-D.position.z));vel.set(0,0,0);airTop=p.y;refresh()};
-renderer.xr.addEventListener('sessionstart',()=>{initAudio();setTimeout(()=>teleport(plat[0].p),500)});
+function setCP(h){if(inWater)return;cp.copy(headP);cp.y+=.25;flag.position.set(cp.x,gy(cp),cp.z);tone(880,1320,.2,.25);if(h)buzz(h,.6,60)}
+function respawn(h){teleport(cp);if(h)buzz(h,.4,60)}
+function platGo(d){cur=Math.max(0,Math.min(plats.length-1,cur+d));teleport(plats[cur].p)}
+renderer.xr.addEventListener('sessionstart',()=>{initAudio();$('info').style.display='none';setTimeout(()=>teleport(plats[0].p),500)});
+renderer.xr.addEventListener('sessionend',()=>{camera.position.set(0,1.7,0);yaw=pitch=0;$('info').style.display='';refresh();teleport(cp)});
 const clock=new THREE.Clock();
 
-renderer.setAnimationLoop(()=>{
- const dt=Math.min(clock.getDelta(),.05)||.014;T+=dt;frame++;refresh();
- // input
+// ---------- PC + mobile input ----------
+const keys={},joy={x:0,y:0};let touchJump=false;const vrOn=()=>renderer.xr.isPresenting;
+addEventListener('keydown',e=>{keys[e.code]=1;if(e.repeat||vrOn())return;if(e.code==='KeyC')setCP();if(e.code==='KeyR')respawn();if(e.code==='KeyE')platGo(1);if(e.code==='KeyQ')platGo(-1);if(e.code==='KeyF')flatGrab()});
+addEventListener('keyup',e=>{keys[e.code]=0});
+const cv=renderer.domElement;
+cv.addEventListener('click',()=>{if(!mobile&&!vrOn()&&document.pointerLockElement!==cv)cv.requestPointerLock()});
+addEventListener('mousemove',e=>{if(document.pointerLockElement===cv){yaw-=e.movementX*.0022;pitch=cl(pitch-e.movementY*.0022,-1.5,1.5)}});
+addEventListener('mousedown',e=>{if(document.pointerLockElement===cv&&e.button===0)flatGrab()});
+const looks=new Map();
+cv.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')looks.set(e.pointerId,[e.clientX,e.clientY])});
+cv.addEventListener('pointermove',e=>{const l=looks.get(e.pointerId);if(!l)return;yaw-=(e.clientX-l[0])*.005;pitch=cl(pitch-(e.clientY-l[1])*.005,-1.5,1.5);l[0]=e.clientX;l[1]=e.clientY});
+['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,e=>looks.delete(e.pointerId)));
+const joyEl=$('joy'),knob=$('knob');let jid=null;
+function jmove(e){const r=joyEl.getBoundingClientRect(),dx=e.clientX-(r.left+65),dy=e.clientY-(r.top+65),m=Math.min(1,Math.hypot(dx,dy)/55),a=Math.atan2(dy,dx);joy.x=Math.cos(a)*m;joy.y=Math.sin(a)*m;knob.style.transform=`translate(${joy.x*45}px,${joy.y*45}px)`}
+joyEl.addEventListener('pointerdown',e=>{jid=e.pointerId;joyEl.setPointerCapture(jid);jmove(e)});
+joyEl.addEventListener('pointermove',e=>{if(e.pointerId===jid)jmove(e)});
+const jend=e=>{if(e.pointerId===jid){jid=null;joy.x=joy.y=0;knob.style.transform=''}};joyEl.addEventListener('pointerup',jend);joyEl.addEventListener('pointercancel',jend);
+const bind=(id,down,up)=>{const el=$(id);el.addEventListener('pointerdown',e=>{e.preventDefault();down()});if(up){el.addEventListener('pointerup',up);el.addEventListener('pointerleave',up)}};
+bind('bJ',()=>touchJump=true,()=>touchJump=false);bind('bG',()=>flatGrab());bind('bC',()=>setCP());bind('bR',()=>respawn());bind('bU',()=>platGo(1));bind('bD',()=>platGo(-1));
+function flatGrab(){if(vrOn())return;camera.getWorldDirection(sd);
+ if(flatHand.held){const r=flatHand.held;r.v.copy(sd).multiplyScalar(13).add(vel);r.held=null;flatHand.held=null;return}
+ let b=null,bd=3.2;rocks.forEach(r=>{tmp.subVectors(r.p,headP);const d=tmp.length();if(!r.held&&d<bd&&tmp.normalize().dot(sd)>.5){bd=d;b=r}});if(b){b.held=flatHand;flatHand.held=b}}
+function bump(c,r){for(const bx of boxes){const p=push(c,r,bx);if(p){D.position.add(p);c.add(p);tmp.copy(p).normalize();const vn=vel.dot(tmp);if(vn<0)vel.addScaledVector(tmp,-vn);if(tmp.y>.5)supported=true;else if(Math.abs(tmp.y)<.4)wallT=true}}}
+function flatStep(dt){
+ climb=false;camera.position.set(0,1.7,0);camera.rotation.set(pitch,yaw,0,'YXZ');
+ let mx=(keys.KeyD?1:0)-(keys.KeyA?1:0)+joy.x,mz=(keys.KeyW?1:0)-(keys.KeyS?1:0)-joy.y;const l=Math.hypot(mx,mz);if(l>1){mx/=l;mz/=l}
+ const jump=keys.Space||touchJump,sprint=keys.ShiftLeft||keys.ShiftRight,fx=-Math.sin(yaw),fz=-Math.cos(yaw),rx=Math.cos(yaw),rz=-Math.sin(yaw);
+ vel.y-=(inWater?G*.1:G)*dt;
+ if(inWater){camera.getWorldDirection(sd);vel.multiplyScalar(Math.max(0,1-3*dt));vel.y+=Math.max(0,Math.min(3,(.55-(headP.y-wl))*3))*dt;
+  vel.addScaledVector(sd,mz*10*dt);vel.x+=rx*mx*8*dt;vel.z+=rz*mx*8*dt;if(jump)vel.y+=9*dt;if(sprint)vel.y-=7*dt;vel.clampLength(0,7)}
+ else{const sp=vel.length();vel.multiplyScalar(Math.max(0,1-.003*sp*dt));
+  if(mx||mz){const s=sprint?8:5.5,k=Math.min(1,(supported?12:1.8)*dt);vel.x+=((fx*mz+rx*mx)*s-vel.x)*k;vel.z+=((fz*mz+rz*mx)*s-vel.z)*k}
+  else if(supported){vel.x*=Math.max(0,1-10*dt);vel.z*=Math.max(0,1-10*dt)}
+  if(jump&&supported&&frame>2&&performance.now()/1000-lastJ>.3){vel.y=6.5;lastJ=performance.now()/1000}
+  else if(jump&&wallT&&!supported)vel.y=Math.max(vel.y,3)}
+ D.position.addScaledVector(vel,dt);refresh();
+ supported=false;wallT=false;bodyP.set(headP.x,D.position.y+.4,headP.z);bump(bodyP,.33);refresh();headC.copy(headP);bump(headC,.2);refresh();
+ camera.getWorldDirection(sd);flatHand.wp.copy(headP).addScaledVector(sd,.7);flatHand.wp.y-=.2}
+
+// ---------- VR step (Gorilla Tag arms) ----------
+function vrStep(dt){
  hands.forEach(h=>{if(!h.init){h.last.copy(h.c.position);h.init=1}
   h.rv.copy(h.c.position).sub(h.last).divideScalar(dt);h.last.copy(h.c.position);h.sv.lerp(h.rv,.4);
   const b=h.gp?h.gp.buttons:[];h.grip=!!(b[1]&&b[1].pressed);
   const a=!!(b[4]&&b[4].pressed),c=!!(b[5]&&b[5].pressed);h.dA=a&&!h.pA;h.dB=c&&!h.pB;h.gd=h.grip&&!h.pG;h.pA=a;h.pB=c;h.pG=h.grip});
  hands.forEach(h=>{
-  if(h.side==='right'){if(h.dA&&!inWater){cp.copy(headP);cp.y+=.25;flag.position.set(cp.x,gy(cp),cp.z);tone(880,1320,.2,.25);buzz(h,.6,60)}if(h.dB){teleport(cp);buzz(h,.4,60)}}
-  if(h.side==='left'){if(h.dA){cur=Math.min(plat.length-1,cur+1);teleport(plat[cur].p)}if(h.dB){cur=Math.max(0,cur-1);teleport(plat[cur].p)}}});
- // grab rocks / walls
+  if(h.side==='right'){if(h.dA)setCP(h);if(h.dB)respawn(h)}
+  if(h.side==='left'){if(h.dA)platGo(1);if(h.dB)platGo(-1)}});
  hands.forEach(h=>{
-  if(h.gd&&!h.held&&!h.grab){const r=rocks.find(k=>!k.held&&k.p.distanceTo(h.wp)<.28);
-   if(r){r.held=h;h.held=r;buzz(h,.2,25)}else if(boxes.some(bx=>push(h.wp,.14,bx))){h.grab=true;h.anc.copy(h.wp);buzz(h,.3,30)}}
+  if(h.gd&&!h.held&&!h.grab){const r=rocks.find(k=>!k.held&&k.p.distanceTo(h.wp)<.3);
+   if(r){r.held=h;h.held=r;buzz(h,.2,25)}else if(boxes.some(bx=>push(h.wp,.35,bx))){h.grab=true;h.anc.copy(h.wp);buzz(h,.3,30)}}
   if(!h.grip){if(h.held){const r=h.held;r.held=null;r.v.copy(h.sv).add(vel).multiplyScalar(1.15);h.held=null;buzz(h,.25,30)}h.grab=false}});
  const gr=hands.filter(h=>h.grab);climb=gr.length>0;let pushed=false,contact=false;
  if(climb){tmp.set(0,0,0);gr.forEach(h=>tmp.add(hv.subVectors(h.anc,h.wp)));tmp.divideScalar(gr.length);D.position.add(tmp);lastMove.lerp(tmp.divideScalar(dt),.3);vel.set(0,0,0);supported=true;refresh()}
  else{
-  if(prevClimb)vel.copy(lastMove).clampLength(0,14);
+  if(prevClimb)vel.copy(lastMove).multiplyScalar(.6).clampLength(0,8);
   const sp=vel.length();vel.y-=(inWater?G*.1:G)*dt;
-  if(inWater){vel.multiplyScalar(Math.max(0,1-3*dt));vel.y+=Math.max(0,Math.min(3,(.55-headP.y)*3))*dt;camera.getWorldDirection(sd);
-   hands.forEach(h=>{if(h.wp.y<0){const f=-h.rv.dot(sd);if(f>.3)vel.addScaledVector(sd,f*6*dt);if(h.rv.y<-.3)vel.y-=h.rv.y*5*dt}});vel.clampLength(0,7)}
-  else vel.multiplyScalar(Math.max(0,1-.003*sp*dt));
+  if(inWater){vel.multiplyScalar(Math.max(0,1-3*dt));vel.y+=Math.max(0,Math.min(3,(.55-(headP.y-wl))*3))*dt;camera.getWorldDirection(sd);
+   hands.forEach(h=>{if(h.wp.y<wl){const f=-h.rv.dot(sd);if(f>.3)vel.addScaledVector(sd,f*6*dt);if(h.rv.y<-.3)vel.y-=h.rv.y*5*dt;if(h.rv.length()>1&&frame%6===0)addRipple(h.wp.x,h.wp.z,.15)}});vel.clampLength(0,7)}
+  else vel.multiplyScalar(Math.max(0,1-(.003*sp+.12)*dt));
   D.position.addScaledVector(vel,dt);refresh();
-  // HANDS push the tiny body off any surface (Gorilla Tag style)
-  hands.forEach(h=>{h.pd.set(0,0,0);for(const bx of boxes){const p=push(h.wp,.1,bx);if(p){tmp.copy(p).normalize();hv.copy(h.rv).multiplyScalar(dt);hv.addScaledVector(tmp,-hv.dot(tmp));p.addScaledVector(hv,-.95);h.pd.add(p);D.position.add(p);refresh()}}if(h.pd.lengthSq()>0)pushed=true});
-  if(pushed){tot.set(0,0,0);hands.forEach(h=>tot.add(h.pd));hv.copy(tot).divideScalar(dt).multiplyScalar(1.2).clampLength(0,14);if(hv.length()<.5)hv.set(0,0,0);vel.copy(hv);
-   hands.forEach(h=>{const s=h.pd.length()/dt;if(s>1.5){buzz(h,s/9,35);if(T-lastSlap>.12){lastSlap=T;burst(600,150,Math.min(.5,s/18),.1)}}})}
+  // hands grip surfaces: pushed out AND dragged opposite to their sliding motion
+  hands.forEach(h=>{h.pd.set(0,0,0);for(const bx of boxes){const p=push(h.wp,.1,bx);if(p){tmp.copy(p).normalize();hv.copy(h.rv).multiplyScalar(dt);hv.addScaledVector(tmp,-hv.dot(tmp));p.addScaledVector(hv,-.9);h.pd.add(p);D.position.add(p);refresh()}}if(h.pd.lengthSq()>0)pushed=true});
+  if(pushed){let b=hands[0],bm=0;hands.forEach(h=>{const m=h.pd.length();if(m>bm){bm=m;b=h}});
+   hv.copy(b.pd).divideScalar(dt).multiplyScalar(.95).clampLength(0,9);
+   if(hv.length()>1.2)vel.lerp(hv,.7);else vel.multiplyScalar(Math.max(0,1-12*dt));   // small movements = no launch, no bounce
+   hands.forEach(h=>{const s=h.pd.length()/dt;if(s>1.5){buzz(h,s/9,35);if(performance.now()/1000-lastSlap>.12){lastSlap=performance.now()/1000;burst(600,150,Math.min(.5,s/18),.1)}}})}
   refresh();
-  // tiny head-sized body: the only other collider
   bodyP.copy(headP);bodyP.y-=.05;
   for(const bx of boxes){const p=push(bodyP,.2,bx);if(p){D.position.add(p);bodyP.add(p);tmp.copy(p).normalize();const vn=vel.dot(tmp);if(vn<0)vel.addScaledVector(tmp,-vn);if(tmp.y>.5){contact=true;vel.x*=Math.max(0,1-8*dt);vel.z*=Math.max(0,1-8*dt)}}}
   supported=pushed||contact;refresh();
  }
+ hands.forEach(h=>{const hw=waveH(h.wp.x,h.wp.z,T);if(h.py>.05&&h.wp.y-hw<=.05){const s=h.rv.length();if(s>1.5){tmp.set(h.wp.x,0,h.wp.z);splash(tmp,Math.min(s,6));burst(1500,300,Math.min(.3,s/15),.15);buzz(h,s/8,40)}}h.py=h.wp.y-hw})}
+
+// ---------- main loop ----------
+renderer.setAnimationLoop(()=>{
+ const dt=Math.min(clock.getDelta(),.05)||.014,vr=vrOn();T+=dt;frame++;wl=waveH(headP.x,headP.z,T);refresh();
+ if(vr)vrStep(dt);else flatStep(dt);
  prevClimb=climb;
- // hands splashing into the water surface
- hands.forEach(h=>{if(h.py>.05&&h.wp.y<=.05){const s=h.rv.length();if(s>1.5){tmp.set(h.wp.x,0,h.wp.z);splash(tmp,Math.min(s,6));burst(1500,300,Math.min(.3,s/15),.15);buzz(h,s/8,40)}}h.py=h.wp.y});
  // water entry + dive rating
- const wasW=inWater;inWater=wasW?headP.y<.45:headP.y<.05;
+ const wasW=inWater,rel=headP.y-wl;inWater=wasW?rel<.45:rel<.05;
  if(inWater&&!wasW){const s=Math.max(-vel.y,.5*Math.hypot(vel.x,vel.z));
   if(s>2){const ang=Math.abs(vel.y)/Math.max(.1,vel.length()),big=airTop>3&&s>9;let rate='',mul=1;
    if(big){rate=ang>.93?'PERFECT!':ang>.7?'Good dive':'BELLY FLOP!';mul=ang>.93?.75:ang>.7?1:1.7}
    tmp.set(headP.x,0,headP.z);splash(tmp,s*mul);burst(2500,250,Math.min(1,(.15+s/30)*mul),.35+s*.015);if(s>12)tone(150,35,Math.min(1,s/40),.5);
    buzzAll((.2+s/30)*mul,150+s*8);bubbles(headP,20+s*2|0,1.2);
    if(airTop>3){lastDive=airTop;lastRate=rate;best=Math.max(best,airTop);showPopup((rate?rate+'  ':'')+airTop.toFixed(0)+' m',headP)}}}
- if(supported||climb||inWater)airTop=D.position.y+(headP.y-D.position.y);else airTop=Math.max(airTop,headP.y);
+ if(inWater&&frame%10===0&&vel.length()>.8)addRipple(headP.x,headP.z,.12);
+ if(supported||climb||inWater)airTop=headP.y;else airTop=Math.max(airTop,headP.y);
  // rocks
  rocks.forEach(r=>{
   if(r.held){r.p.copy(r.held.wp);r.v.set(0,0,0)}
-  else{const was=r.p.y>0;r.v.y-=(r.p.y<0?3:G)*dt;if(r.p.y<0)r.v.multiplyScalar(Math.max(0,1-3*dt));r.p.addScaledVector(r.v,dt);
+  else{const wr=waveH(r.p.x,r.p.z,T),was=r.p.y>wr;r.v.y-=(r.p.y<wr?3:G)*dt;if(r.p.y<wr)r.v.multiplyScalar(Math.max(0,1-3*dt));r.p.addScaledVector(r.v,dt);
    for(const bx of boxes){const p=push(r.p,r.r,bx);if(p){r.p.add(p);tmp.copy(p).normalize();const vn=r.v.dot(tmp);if(vn<0){r.v.addScaledVector(tmp,-1.35*vn);if(r.v.length()<.6&&tmp.y>.5)r.v.set(0,0,0)}if(tmp.y>.5){r.v.x*=Math.max(0,1-4*dt);r.v.z*=Math.max(0,1-4*dt)}}}
-   if(was&&r.p.y<0){const s=r.v.length();if(s>1.5){splash(r.p,Math.min(s*.7,14));burst(1800,300,Math.min(.5,s/20),.25)}}
+   if(was&&r.p.y<wr){const s=r.v.length();if(s>1.5){splash(r.p,Math.min(s*.7,14));burst(1800,300,Math.min(.5,s/20),.25)}}
    if(r.p.y<-8||Math.abs(r.p.x)>500||Math.abs(r.p.z)>500){r.p.copy(r.home);r.v.set(0,0,0)}}
   r.m.position.copy(r.p);r.m.rotation.x+=r.v.z*dt*2;r.m.rotation.z-=r.v.x*dt*2});
  if(headP.y<-35||Math.abs(headP.x)>450||Math.abs(headP.z)>450)teleport(cp);
+ // fish: schools drift around the reefs and scatter when you come close
+ schools.forEach(s=>{s.a+=s.s*dt;s.t.set(s.c.x+Math.cos(s.a)*s.r,s.y+Math.sin(s.a*2)*1.5,s.c.z+Math.sin(s.a)*s.r*.6)});
+ fish.forEach((f,i)=>{const s=schools[f.sch];tmp.copy(s.t).add(f.off);tmp.x+=Math.sin(T*.8+f.ph)*1.2;tmp.sub(f.p);const d=tmp.length();f.v.lerp(tmp.normalize().multiplyScalar(Math.min(3,1+d*.8)),dt*1.5);
+  hv.subVectors(f.p,headP);if(hv.lengthSq()<16)f.v.addScaledVector(hv.normalize(),dt*14);
+  f.p.addScaledVector(f.v,dt);f.p.y=cl(f.p.y,-9.5,-1.5);const th=Math.atan2(-f.v.z,f.v.x);
+  fo.position.copy(f.p);fo.rotation.set(0,th,0);fo.updateMatrix();fb.setMatrixAt(i,fo.matrix);
+  ftO.position.set(f.p.x-Math.cos(th)*.27,f.p.y,f.p.z+Math.sin(th)*.27);ftO.rotation.set(0,th+Math.sin(T*10+f.ph)*.5,0);ftO.updateMatrix();ft.setMatrixAt(i,ftO.matrix)});
+ fb.instanceMatrix.needsUpdate=ft.instanceMatrix.needsUpdate=true;
  // ---------- feel ----------
- const sp=vel.length(),air=!supported&&!climb&&!inWater,uw=headP.y<.05;
+ const sp=vel.length(),air=!supported&&!climb&&!inWater,uw=headP.y-wl<.05;
  if(ac&&wind){const w=air?Math.pow(Math.min(1,sp/45),1.4)*.9:0;wind.gn.gain.value+=(w-wind.gn.gain.value)*.15;wind.fl.frequency.value=300+sp*30;
   ocean.gn.gain.value=uw?.25:.09+.03*Math.sin(T*.7);ocean.fl.frequency.value=uw?200:500}
  if(air&&sp>14&&frame%3===0)buzzAll((sp-14)/80,50);
  if(ac&&T>nextGull){nextGull=T+7+rnd()*10;if(!uw){tone(1900,1250,.05,.28);setTimeout(()=>tone(1700,1100,.04,.22),260)}}
- // speed lines + tunnel vision
  smat.opacity=Math.min(.6,Math.max(0,(sp-12)/30));vig.material.opacity=Math.min(.9,Math.max(0,(sp-18)/32));
  if(smat.opacity>0){sd.copy(vel).normalize();const len=sp*.04;for(let i=0;i<NS;i++){const q=sq[i];if(q.distanceToSquared(headP)>196){q.set(rnd()-.5,rnd()-.5,rnd()-.5).multiplyScalar(12).add(headP).addScaledVector(sd,rnd()*8)}
   sa.set([q.x,q.y,q.z,q.x-sd.x*len,q.y-sd.y*len,q.z-sd.z*len],i*6)}sg.attributes.position.needsUpdate=true}
- // bubbles, particles, rings
  if(uw&&frame%6===0)bubbles(headP,1,.6);
- for(let i=0;i<NB;i++)if(bl[i]>0){bl[i]-=dt;bp[i*3+1]+=.7*dt;bp[i*3]+=Math.sin(T*3+i)*.2*dt;if(bl[i]<=0||bp[i*3+1]>0){bl[i]=0;bp[i*3+1]=-999}}bg.attributes.position.needsUpdate=true;
+ for(let i=0;i<NB;i++)if(bl[i]>0){bl[i]-=dt;bp[i*3+1]+=.7*dt;bp[i*3]+=Math.sin(T*3+i)*.2*dt;if(bl[i]<=0||bp[i*3+1]>wl){bl[i]=0;bp[i*3+1]=-999}}bg.attributes.position.needsUpdate=true;
  for(let i=0;i<N;i++)if(pl[i]>0){pl[i]-=dt;pv[i*3+1]-=G*dt;for(let a=0;a<3;a++)pp[i*3+a]+=pv[i*3+a]*dt;if(pl[i]<=0||pp[i*3+1]<-.1){pl[i]=0;pp[i*3+1]=-999}}pg.attributes.position.needsUpdate=true;
- rings.forEach(q=>{if(q.l>0){q.l-=dt*.8;q.s+=dt*q.k*4;q.m.scale.setScalar(q.s);q.m.material.opacity=Math.max(0,q.l)*.8;if(q.l<=0)q.m.visible=false}});
  if(popL>0){popL-=dt;popup.material.opacity=Math.min(1,popL);if(popL<=0)popup.visible=false}
- // ambience
  clouds.forEach(c=>{c.position.x+=dt*3;if(c.position.x>750)c.position.x=-750});
  gulls.forEach(g=>{const u=g.userData;u.a+=u.s*dt;g.position.set(Math.cos(u.a)*u.r,u.y+Math.sin(T+u.ph)*2,-10+Math.sin(u.a)*u.r);g.rotation.y=-u.a;u.w1.rotation.z=Math.sin(T*7+u.ph)*.7;u.w2.rotation.z=-u.w1.rotation.z});
- scene.background.copy(uw?DEEP:SKY);scene.fog.color.copy(uw?DEEP:SKY);scene.fog.density=uw?.06:.0022;skyMesh.visible=!uw;
- if(frame%2===0)waves(T);if(frame%8===0)drawHud(Math.max(0,headP.y),sp);
+ const fc=uw?DEEP:SKY,fd=uw?.06:.0022;scene.background.copy(fc);scene.fog.color.copy(fc);scene.fog.density=fd;skyMesh.visible=!uw;
+ WU.uT.value=T;WU.uFog.value.copy(fc);WU.uFogD.value=fd;
+ if(frame%8===0){if(vr)drawHud(Math.max(0,headP.y),sp);else $('hud').textContent='Height '+Math.max(0,headP.y).toFixed(0)+' m\nSpeed '+(sp*3.6).toFixed(0)+' km/h\nLast '+lastDive.toFixed(0)+' m '+lastRate+'\nBest '+best.toFixed(0)+' m'}
+ $('hud').style.display=vr?'none':'';
  renderer.render(scene,camera)});
 </script></body></html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cliff Dive VR</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#8fd0ff;font-family:system-ui,sans-serif}
+#info{position:fixed;top:12px;left:12px;color:#fff;background:#0008;padding:10px 14px;border-radius:10px;max-width:360px;font-size:13px;line-height:1.5}</style></head><body>
+<div id="info"><b>Cliff Dive VR</b><br>Hands push off ground/walls = move &amp; jump (Gorilla Tag style). Grip on rock = grab &amp; throw, grip on wall/ledge = climb. Left stick walk, right stick up = jump. A set checkpoint, B respawn, X/Y higher/lower platform.</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {VRButton} from 'three/addons/webxr/VRButton.js';
+const G=9.8,V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(1);renderer.setSize(innerWidth,innerHeight);renderer.xr.enabled=true;
+document.body.appendChild(renderer.domElement);document.body.appendChild(VRButton.createButton(renderer));
+const scene=new THREE.Scene(),SKY=new THREE.Color(0x8fd0ff),DEEP=new THREE.Color(0x0b5d7a);
+scene.background=SKY.clone();scene.fog=new THREE.FogExp2(0x8fd0ff,.0025);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,2000);camera.position.set(0,1.6,0);
+const D=new THREE.Group();D.add(camera);scene.add(D);
+scene.add(new THREE.HemisphereLight(0xffffff,0x446655,1.1));
+const sun=new THREE.DirectionalLight(0xfff2d0,1.6);sun.position.set(60,120,-40);scene.add(sun);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+
+// ---------- world ----------
+const boxes=[];
+function addBox(x,y,z,w,h,d,col){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:col}));m.position.set(x,y,z);scene.add(m);boxes.push(new THREE.Box3(V(x-w/2,y-h/2,z-d/2),V(x+w/2,y+h/2,z+d/2)))}
+function sign(t,x,y,z){const c=document.createElement('canvas');c.width=256;c.height=128;const g=c.getContext('2d');g.fillStyle='#0009';g.fillRect(0,0,256,128);g.fillStyle='#fff';g.font='bold 72px sans-serif';g.textAlign='center';g.fillText(t,128,92);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));s.scale.set(5,2.5,1);s.position.set(x,y,z);scene.add(s)}
+addBox(0,-45,0,1200,30,1200,0xd9c58f);          // seabed (top y=-30)
+addBox(0,120,60,160,300,20,0x7a6a5c);           // cliff wall (z 50..70)
+addBox(0,-1,43,26,2.8,14,0xe8d29b);             // beach (top y=.4)
+addBox(-30,2.5,10,6,15,6,0x6f6458);addBox(25,0,0,5,10,5,0x6f6458); // sea stacks (10 m, 5 m)
+const H=[3,8,15,25,40,60,90,130,180,250],plat=[{p:V(0,.4,44)}];
+H.forEach((h,i)=>{const x=(i%2?-1:1)*(16+Math.floor(i/2)*8);addBox(x,h-.5,45,6,1,10,0xc9b27c);plat.push({p:V(x,h,46)});sign(h+' m',x,h+2.8,41)});
+const wg=new THREE.PlaneGeometry(1200,1200,60,60);wg.rotateX(-Math.PI/2);
+const water=new THREE.Mesh(wg,new THREE.MeshPhongMaterial({color:0x1fa6c9,transparent:true,opacity:.82,flatShading:true,shininess:90}));scene.add(water);
+const wpos=wg.attributes.position;
+function waves(t){for(let i=0;i<wpos.count;i++){const x=wpos.getX(i),z=wpos.getZ(i);wpos.setY(i,Math.sin(x*.07+t)*.12+Math.sin(z*.09+t*1.3)*.1)}wpos.needsUpdate=true;wg.computeVertexNormals()}
+const flag=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.6,6).translate(0,.8,0),new THREE.MeshBasicMaterial({color:0xffe14d}));scene.add(flag);
+
+// ---------- rocks ----------
+const rocks=[];
+function addRock(x,y,z){const r=.1+Math.random()*.06,m=new THREE.Mesh(new THREE.IcosahedronGeometry(r,0),new THREE.MeshLambertMaterial({color:0x888078}));scene.add(m);rocks.push({m,r,p:V(x,y,z),v:V(),home:V(x,y,z),held:null})}
+for(let i=0;i<8;i++)addRock(-8+i*2.3,.6,40+Math.random()*4);
+plat.slice(1,7).forEach(q=>{addRock(q.p.x-1,q.p.y+.2,q.p.z);addRock(q.p.x+1,q.p.y+.2,q.p.z)});
+
+// ---------- splash fx ----------
+const N=400,pp=new Float32Array(N*3).fill(-999),pv=new Float32Array(N*3),pl=new Float32Array(N);let pidx=0;
+const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
+const pts=new THREE.Points(pg,new THREE.PointsMaterial({color:0xffffff,size:.16,transparent:true,opacity:.85,depthWrite:false}));pts.frustumCulled=false;scene.add(pts);
+const rings=[...Array(6)].map(()=>{const m=new THREE.Mesh(new THREE.RingGeometry(.5,.65,28).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,side:2,depthWrite:false}));m.visible=false;scene.add(m);return{m,l:0,s:1,k:1}});let ridx=0;
+function splash(p,s){const n=Math.min(N,8+(s*3|0));for(let k=0;k<n;k++){const i=pidx++%N,a=Math.random()*6.28,r=Math.random()*(.3+s*.03),u=1+Math.random()*(2+s*.35);
+ pp.set([p.x+Math.cos(a)*r*.3,.05,p.z+Math.sin(a)*r*.3],i*3);pv.set([Math.cos(a)*r*2,u,Math.sin(a)*r*2],i*3);pl[i]=1.2}
+ const q=rings[ridx++%6];q.m.position.set(p.x,.06,p.z);q.l=1;q.s=1;q.k=.5+s*.12;q.m.visible=true}
+function fx(dt){for(let i=0;i<N;i++)if(pl[i]>0){pl[i]-=dt;pv[i*3+1]-=G*dt;for(let a=0;a<3;a++)pp[i*3+a]+=pv[i*3+a]*dt;if(pl[i]<=0||pp[i*3+1]<-.1){pl[i]=0;pp[i*3+1]=-999}}
+ pg.attributes.position.needsUpdate=true;
+ rings.forEach(q=>{if(q.l>0){q.l-=dt*.8;q.s+=dt*q.k*4;q.m.scale.setScalar(q.s);q.m.material.opacity=Math.max(0,q.l)*.8;if(q.l<=0)q.m.visible=false}})}
+
+// ---------- audio ----------
+let ac,wind,ocean,nb;
+function initAudio(){if(ac){ac.resume();return}ac=new(window.AudioContext||window.webkitAudioContext)();nb=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate);const d=nb.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+ const loop=(type,f,g)=>{const s=ac.createBufferSource();s.buffer=nb;s.loop=true;const fl=ac.createBiquadFilter();fl.type=type;fl.frequency.value=f;const gn=ac.createGain();gn.gain.value=g;s.connect(fl);fl.connect(gn);gn.connect(ac.destination);s.start();return{fl,gn}};
+ wind=loop('bandpass',500,0);ocean=loop('lowpass',450,.1)}
+function burst(f0,f1,vol,dur){if(!ac)return;const s=ac.createBufferSource();s.buffer=nb;const fl=ac.createBiquadFilter();fl.type='lowpass';const t=ac.currentTime;fl.frequency.setValueAtTime(f0,t);fl.frequency.exponentialRampToValueAtTime(f1,t+dur);
+ const g=ac.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);s.connect(fl);fl.connect(g);g.connect(ac.destination);s.start(t,Math.random(),dur+.05)}
+function tone(f0,f1,vol,dur){if(!ac)return;const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+dur+.05)}
+addEventListener('click',initAudio);renderer.xr.addEventListener('sessionstart',initAudio);
+
+// ---------- controllers ----------
+const hands=[0,1].map(i=>{const c=renderer.xr.getController(i);D.add(c);c.add(new THREE.Mesh(new THREE.SphereGeometry(.06,12,8),new THREE.MeshLambertMaterial({color:i?0xff7a59:0x59a8ff})));
+ const h={c,gp:null,side:'',last:V(),rv:V(),sv:V(),wp:V(),anc:V(),pd:V(),ax:[0,0,0,0],grip:false,grab:false,held:null};
+ c.addEventListener('connected',e=>{h.gp=e.data.gamepad;h.side=e.data.handedness;if(h.side==='left')c.add(hud)});c.addEventListener('disconnected',()=>{h.gp=null});return h});
+function buzz(h,v,ms){try{const g=h.gp;if(!g)return;const a=g.hapticActuators&&g.hapticActuators[0];v=Math.min(1,v);if(a&&a.pulse)a.pulse(v,ms);else if(g.vibrationActuator)g.vibrationActuator.playEffect('dual-rumble',{duration:ms,strongMagnitude:v,weakMagnitude:v})}catch(e){}}
+const buzzAll=(v,ms)=>hands.forEach(h=>buzz(h,v,ms));
+const hc=document.createElement('canvas');hc.width=256;hc.height=128;const hg=hc.getContext('2d'),ht=new THREE.CanvasTexture(hc);
+const hud=new THREE.Mesh(new THREE.PlaneGeometry(.16,.08),new THREE.MeshBasicMaterial({map:ht,transparent:true}));hud.position.set(0,.05,.07);hud.rotation.x=-.9;
+let lastDive=0,best=0;
+function drawHud(h,s){hg.clearRect(0,0,256,128);hg.fillStyle='#000b';hg.fillRect(0,0,256,128);hg.fillStyle='#fff';hg.font='bold 26px sans-serif';hg.fillText('Height '+h.toFixed(0)+' m',12,36);hg.fillText('Speed '+(s*3.6).toFixed(0)+' km/h',12,70);hg.fillText('Last '+lastDive.toFixed(0)+'  Best '+best.toFixed(0)+' m',12,106);ht.needsUpdate=true}
+
+// ---------- collision ----------
+const _c=V(),_d=V(),_o=V(),cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+function push(p,r,b){_c.set(cl(p.x,b.min.x,b.max.x),cl(p.y,b.min.y,b.max.y),cl(p.z,b.min.z,b.max.z));_d.subVectors(p,_c);const d2=_d.lengthSq();if(d2>=r*r)return null;
+ if(d2>1e-10){const d=Math.sqrt(d2);return _o.copy(_d).multiplyScalar((r-d)/d)}
+ const e=[p.x-b.min.x,b.max.x-p.x,p.y-b.min.y,b.max.y-p.y,p.z-b.min.z,b.max.z-p.z];let k=0;for(let i=1;i<6;i++)if(e[i]<e[k])k=i;
+ const s=k%2?1:-1;_o.set(0,0,0);if(k<2)_o.x=s*(e[k]+r);else if(k<4)_o.y=s*(e[k]+r);else _o.z=s*(e[k]+r);return _o}
+
+// ---------- state ----------
+const vel=V(),lastMove=V(),headP=V(),bodyP=V(),tmp=V(),tot=V(),hv=V(),fw=V(),rt=V(),cp=V(0,.4,44);
+let grounded=false,inWater=false,climb=false,prevClimb=false,airTop=0,cur=0,T=0,frame=0,lastJ=0,lastSlap=0,stepT=0;
+D.position.copy(cp);flag.position.copy(cp);
+const refresh=()=>{D.updateMatrixWorld(true);hands.forEach(h=>h.c.getWorldPosition(h.wp));camera.getWorldPosition(headP)};
+const teleport=p=>{D.position.copy(p);vel.set(0,0,0);airTop=p.y};
+const clock=new THREE.Clock();
+
+renderer.setAnimationLoop(()=>{
+ const dt=Math.min(clock.getDelta(),.05)||.014;T+=dt;frame++;refresh();
+ // input
+ hands.forEach(h=>{if(!h.init){h.last.copy(h.c.position);h.init=1}
+  h.rv.copy(h.c.position).sub(h.last).divideScalar(dt);h.last.copy(h.c.position);h.sv.lerp(h.rv,.4);
+  const b=h.gp?h.gp.buttons:[];h.ax=h.gp?h.gp.axes:[0,0,0,0];h.grip=!!(b[1]&&b[1].pressed);
+  const a=!!(b[4]&&b[4].pressed),c=!!(b[5]&&b[5].pressed);h.dA=a&&!h.pA;h.dB=c&&!h.pB;h.gd=h.grip&&!h.pG;h.pA=a;h.pB=c;h.pG=h.grip});
+ hands.forEach(h=>{
+  if(h.side==='right'){if(h.dA&&!inWater){cp.copy(D.position);flag.position.copy(cp);tone(880,1320,.2,.25);buzz(h,.6,60)}if(h.dB){teleport(cp);buzz(h,.4,60)}}
+  if(h.side==='left'){if(h.dA){cur=Math.min(plat.length-1,cur+1);teleport(plat[cur].p)}if(h.dB){cur=Math.max(0,cur-1);teleport(plat[cur].p)}}});
+ refresh();
+ // grab rocks / walls
+ hands.forEach(h=>{
+  if(h.gd&&!h.held&&!h.grab){const r=rocks.find(k=>!k.held&&k.p.distanceTo(h.wp)<.28);
+   if(r){r.held=h;h.held=r;buzz(h,.2,25)}else if(boxes.some(bx=>push(h.wp,.14,bx))){h.grab=true;h.anc.copy(h.wp);buzz(h,.3,30)}}
+  if(!h.grip){if(h.held){const r=h.held;r.held=null;r.v.copy(h.sv).add(vel).multiplyScalar(1.15);h.held=null;buzz(h,.25,30)}h.grab=false}});
+ const gr=hands.filter(h=>h.grab);climb=gr.length>0;let pushed=false;
+ if(climb){tmp.set(0,0,0);gr.forEach(h=>tmp.add(hv.subVectors(h.anc,h.wp)));tmp.divideScalar(gr.length);D.position.add(tmp);lastMove.lerp(tmp.divideScalar(dt),.3);vel.set(0,0,0);refresh()}
+ else{
+  if(prevClimb)vel.copy(lastMove).clampLength(0,14);
+  const sp=vel.length();vel.y-=(inWater?G*.15:G)*dt;
+  if(inWater){vel.multiplyScalar(Math.max(0,1-4*dt));vel.y+=(-1-D.position.y)*5*dt;
+   hands.forEach(h=>{if(h.wp.y<0)vel.addScaledVector(h.rv,-.08*dt*72)});vel.clampLength(0,8)}
+  else vel.multiplyScalar(Math.max(0,1-.003*sp*dt));
+  D.position.addScaledVector(vel,dt);refresh();
+  // hands push off surfaces (Gorilla Tag style)
+  hands.forEach(h=>{h.pd.set(0,0,0);for(const bx of boxes){const p=push(h.wp,.1,bx);if(p){h.pd.add(p);h.wp.add(p);D.position.add(p)}}if(h.pd.lengthSq()>0)pushed=true});
+  if(pushed){tot.set(0,0,0);hands.forEach(h=>tot.add(h.pd));vel.copy(tot).divideScalar(dt).clampLength(0,15);
+   hands.forEach(h=>{const s=h.pd.length()/dt;if(s>1.5){buzz(h,s/9,35);if(T-lastSlap>.12){lastSlap=T;burst(600,150,Math.min(.5,s/18),.1)}}})}
+  refresh();
+  // body (feet) collision
+  grounded=false;bodyP.set(headP.x,D.position.y+.35,headP.z);
+  for(const bx of boxes){const p=push(bodyP,.33,bx);if(p){D.position.add(p);bodyP.add(p);tmp.copy(p).normalize();const vn=vel.dot(tmp);if(vn<0)vel.addScaledVector(tmp,-vn);if(tmp.y>.5)grounded=true}}
+  // walking, jumping
+  if(grounded&&!inWater){const L=hands.find(h=>h.side==='left'),R=hands.find(h=>h.side==='right');let mx=0,mz=0;
+   if(L&&Math.hypot(L.ax[2],L.ax[3])>.15){camera.getWorldDirection(fw);fw.y=0;fw.normalize();rt.set(-fw.z,0,fw.x);mx=-fw.x*L.ax[3]+rt.x*L.ax[2];mz=-fw.z*L.ax[3]+rt.z*L.ax[2]}
+   const k=Math.min(1,10*dt);
+   if(mx||mz){vel.x+=(mx*3.2-vel.x)*k;vel.z+=(mz*3.2-vel.z)*k}else if(!pushed){vel.x*=Math.max(0,1-8*dt);vel.z*=Math.max(0,1-8*dt)}
+   if(R&&R.ax[3]<-.8&&T-lastJ>.4){vel.y=5;lastJ=T;grounded=false}
+   stepT+=Math.hypot(vel.x,vel.z)*dt;if(stepT>1.4){stepT=0;burst(400,120,.12,.08);buzzAll(.12,20)}}
+  refresh();
+ }
+ prevClimb=climb;
+ // water
+ const wasW=inWater;inWater=D.position.y+1<.1;
+ if(inWater&&!wasW){const s=Math.max(-vel.y,.5*Math.hypot(vel.x,vel.z));
+  if(s>2){tmp.set(headP.x,0,headP.z);splash(tmp,s);burst(2500,250,Math.min(1,.15+s/30),.35+s*.015);if(s>12)tone(150,35,Math.min(1,s/40),.5);buzzAll(.2+s/30,150+s*8)}
+  if(airTop>2){lastDive=airTop;best=Math.max(best,airTop)}}
+ if(grounded||climb||inWater)airTop=D.position.y;else airTop=Math.max(airTop,D.position.y);
+ // rocks
+ rocks.forEach(r=>{
+  if(r.held){r.p.copy(r.held.wp);r.v.set(0,0,0)}
+  else{const was=r.p.y>0;r.v.y-=(r.p.y<0?3:G)*dt;if(r.p.y<0)r.v.multiplyScalar(Math.max(0,1-3*dt));r.p.addScaledVector(r.v,dt);
+   for(const bx of boxes){const p=push(r.p,r.r,bx);if(p){r.p.add(p);tmp.copy(p).normalize();const vn=r.v.dot(tmp);if(vn<0){r.v.addScaledVector(tmp,-1.35*vn);if(r.v.length()<.6&&tmp.y>.5)r.v.set(0,0,0)}if(tmp.y>.5){r.v.x*=Math.max(0,1-4*dt);r.v.z*=Math.max(0,1-4*dt)}}}
+   if(was&&r.p.y<0){const s=r.v.length();if(s>1.5){splash(r.p,Math.min(s*.7,14));burst(1800,300,Math.min(.5,s/20),.25)}}
+   if(r.p.y<-8||Math.abs(r.p.x)>500||Math.abs(r.p.z)>500){r.p.copy(r.home);r.v.set(0,0,0)}}
+  r.m.position.copy(r.p);r.m.rotation.x+=r.v.z*dt*2;r.m.rotation.z-=r.v.x*dt*2});
+ if(D.position.y<-35||Math.abs(D.position.x)>450||Math.abs(D.position.z)>450)teleport(cp);
+ // feel: wind, ocean, rumble, visuals
+ const sp=vel.length(),air=!grounded&&!climb&&!inWater,uw=headP.y<.05;
+ if(ac&&wind){const w=air?Math.pow(Math.min(1,sp/45),1.4)*.9:0;wind.gn.gain.value+=(w-wind.gn.gain.value)*.15;wind.fl.frequency.value=300+sp*30;
+  ocean.gn.gain.value=uw?.25:.09+.03*Math.sin(T*.7);ocean.fl.frequency.value=uw?200:500}
+ if(air&&sp>14&&frame%3===0)buzzAll((sp-14)/80,50);
+ scene.background.copy(uw?DEEP:SKY);scene.fog.color.copy(uw?DEEP:SKY);scene.fog.density=uw?.06:.0025;
+ if(frame%2===0)waves(T);fx(dt);if(frame%8===0)drawHud(Math.max(0,headP.y),sp);
+ renderer.render(scene,camera)});
+</script></body></html>
